@@ -14,12 +14,13 @@ class Chrono():
     def __init__(self,temps = 0):
         self.tempsEcoule = temps
         self.tempsRef = 0
-        self.pause = True 
+        self.pause = True
+        self.multiplicateur = 1 
     def lancement(self):
         while True:
             if not self.pause:
                 temps = time.time()
-                self.tempsEcoule += temps - self.tempsRef
+                self.tempsEcoule += (temps - self.tempsRef)*self.multiplicateur
                 self.tempsRef = temps
                 # print(self.tempsEcoule)
 
@@ -92,15 +93,25 @@ async def setTime(ctx,secondes):
         await ctx.send("Vous n'avez pas rentré un nombre de secondes")
 
 @client.command()
+async def setMultipli(ctx,multi):
+    serveur = str(ctx.guild.id)
+    try:
+        multiplicateur = int(multi)
+        if serveur in client.chronos.keys():
+            client.chronos[serveur].multiplicateur = multiplicateur
+        else:
+            await ctx.send("chrono inexistant")
+    except ValueError:
+        await ctx.send("Vous n'avez pas rentré un nombre de secondes")
+
+@client.command()
 async def heure(ctx):
     serveur = str(ctx.guild.id)
     if serveur in client.chronos.keys():
-        h,m,s = secTohms(int(client.chronos[serveur].tempsEcoule*3))
+        h,m,s = secTohms(int(client.chronos[serveur].tempsEcoule))
         await ctx.send("il est {}h{}m{}s".format(h,m,s))
     else:
         await ctx.send("Ce serveur n'a pas de chrono actuellement")
-
-
 
 @client.command()
 async def chrono(ctx):
