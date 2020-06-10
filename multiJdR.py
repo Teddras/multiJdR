@@ -9,7 +9,7 @@ import threading
 from discord.ext import commands
 from discord.utils import get
 
-#lien d'invitation : 
+#lien d'invitation : https://discord.com/api/oauth2/authorize?client_id=716174723494576230&permissions=0&scope=bot
 class Chrono():
     def __init__(self,temps = 0):
         self.tempsEcoule = temps
@@ -19,15 +19,16 @@ class Chrono():
         while True:
             if not self.pause:
                 temps = time.time()
-                self.tempsEcoule += self.tempsRef - temps
+                self.tempsEcoule += temps - self.tempsRef
                 self.tempsRef = temps
-                print(self.tempsEcoule)
+                # print(self.tempsEcoule)
 
 class MonRobot(commands.Bot):
     def __init__(self,command_prefix = "!"):
         commands.Bot.__init__(self,command_prefix = command_prefix)
         self.chronos = {}
         self.canaux = {}
+        self.threads = {}
     async def cloches(self,serveur,coups):
         try:
             for canal in self.canaux[serveur]:
@@ -36,13 +37,16 @@ class MonRobot(commands.Bot):
                 while i < coups:
                     print("cloche {}".format(i))
                     await voc.play(discord.FFmpegOpusAudio("clocheTest.mp3"))
-                    while voc.isplaying():
-                        time.sleep(0.1)
+                    time.sleep(1.3)
                     i += 1
                 voc.disconnect()
         except ClientException:
             voc.disconnect()
-            
+
+def secTohms(nb_sec):
+    q,s=divmod(nb_sec,60)
+    h,m=divmod(q,60)
+    return (h,m,s)
 
 client = MonRobot("%")
 
@@ -63,26 +67,77 @@ async def ajouterCanal(ctx):
     print(client.canaux)
 
 @client.command()
-async def chrono(ctx):
+async def startChrono(ctx):
     serveur = str(ctx.guild.id)
     if serveur in client.chronos.keys():
-        pass
+        if not serveur in client.threads.keys():
+            client.threads[serveur] = threading.Thread(target= client.chronos[serveur].lancement)
+            client.threads[serveur].start()
+        else:
+            await ctx.send("chrono déjà lancé")
+    else:
+        await ctx.send("chrono inexistant")
+    print(client.threads)
 
 @client.command()
-async def cloches(ctx,nombre):
+async def setTime(ctx,secondes):
     serveur = str(ctx.guild.id)
     try:
-        coups = int(nombre)
-        if serveur in client.canaux.keys():
-            if client.canaux[serveur] != []:
-                await client.cloches(serveur,coups)
-            else:
-                ctx.send("pas de canaux enregistré")
+        secondes = int(secondes)
+        if serveur in client.chronos.keys():
+            client.chronos[serveur].tempsEcoule = secondes
         else:
-            ctx.send("pas de canaux enregistré")
+            await ctx.send("chrono inexistant")
     except ValueError:
-        print("erreur de valeur")
+        await ctx.send("Vous n'avez pas rentré un nombre de secondes")
 
+@client.command()
+async def heure(ctx):
+    serveur = str(ctx.guild.id)
+    if serveur in client.chronos.keys():
+        h,m,s = secTohms(int(client.chronos[serveur].tempsEcoule*3))
+        await ctx.send("il est {}h{}m{}s".format(h,m,s))
+    else:
+        await ctx.send("Ce serveur n'a pas de chrono actuellement")
+
+
+
+@client.command()
+async def chrono(ctx):
+    serveur = str(ctx.guild.id)
+    if not serveur in client.chronos.keys():
+        client.chronos[serveur] = Chrono()
+    else:
+        print("chrono déjà existant")
+    print(client.chronos)
+
+# @client.command()
+# async def cloches(ctx,nombre):
+#     serveur = str(ctx.guild.id)
+#     try:
+#         coups = int(nombre)
+#         if serveur in client.canaux.keys():
+#             if client.canaux[serveur] != []:
+#                 await client.cloches(serveur,coups)
+#             else:
+#                 await ctx.send("pas de canaux enregistré")
+#         else:
+#             await ctx.send("pas de canaux enregistré")
+#     except ValueError:
+#         print("erreur de valeur")
+
+@client.command()
+async def pause(ctx):
+    serveur = str(ctx.guild.id)
+    if serveur in client.chronos.keys():
+        if client.chronos[serveur].pause:
+            client.chronos[serveur].tempsRef = time.time()
+            client.chronos[serveur].pause = False
+        else:
+            client.chronos[serveur].tempsRef = time.time()
+            client.chronos[serveur].pause = True
+    else:
+        ctx.send("Ce serveur n'a pas de chrono actuellement")
 
 @client.event
 #détection de l'allumage du bot
